@@ -8,8 +8,7 @@ can size a buffer for forecast error when they buy.
 - **Data:** Elexon BMRS, national wind only. Actuals come from `FUELHH` (`fuelType = WIND`) and
   forecasts from `WINDFOR`.
 - **Scope:** target times 2026-01-01 00:00 to 2026-01-31 23:30 UTC.
-- **Live deployment:** _not yet deployed — see [Deploy to Vercel](#deploy-to-vercel)_
-  <!-- Replace with the Vercel URL once deployed. -->
+- **Live deployment:** _frontend on Vercel, API on Render — see [Deployment](#deployment)_
 
 ## The business problem
 
@@ -38,11 +37,11 @@ have?"_ For each target time **T**:
 
 **Example (illustrative values).** Target T = 10 Jan 12:00, horizon H = 4 h, so the cutoff is 08:00.
 
-| Publish time | Forecast | Eligible?                       |
-| ------------ | -------- | ------------------------------- |
-| 10 Jan 02:30 | 9,800 MW | yes                             |
-| 10 Jan 07:30 | 9,450 MW | **yes, latest before 08:00**    |
-| 10 Jan 09:30 | 9,200 MW | no, published after the cutoff  |
+| Publish time | Forecast | Eligible?                      |
+| ------------ | -------- | ------------------------------ |
+| 10 Jan 02:30 | 9,800 MW | yes                            |
+| 10 Jan 07:30 | 9,450 MW | **yes, latest before 08:00**   |
+| 10 Jan 09:30 | 9,200 MW | no, published after the cutoff |
 
 The 4 h-ahead forecast for 12:00 is **9,450 MW**, published 4.5 h ahead. Because publications
 are discrete, the _effective_ lead time is always ≥ H. At H = 24 h it averages 25.6 h.
@@ -116,25 +115,25 @@ flowchart LR
 The app never calls Elexon at runtime. It reads the committed CSV cache, so the deployment
 keeps working if BMRS is down. Horizon selections are memoised per horizon.
 
-| Layer         | Tech                                                           |
-| ------------- | -------------------------------------------------------------- |
-| Data / API    | Python 3.11+, FastAPI, pandas, NumPy, pydantic, pydantic-settings |
-| Frontend      | React 19, TypeScript, Vite, Recharts                           |
-| Quality       | pytest, ruff, black, ESLint, Prettier                          |
-| Packaging     | Docker (multi-stage, nginx), docker compose                    |
-| Hosting       | Vercel (static build + Python serverless function)            |
+| Layer      | Tech                                                              |
+| ---------- | ----------------------------------------------------------------- |
+| Data / API | Python 3.11+, FastAPI, pandas, NumPy, pydantic, pydantic-settings |
+| Frontend   | React 19, TypeScript, Vite, Recharts                              |
+| Quality    | pytest, ruff, black, ESLint, Prettier                             |
+| Packaging  | Docker (multi-stage, nginx), docker compose                       |
+| Hosting    | Vercel (static frontend) + Render (FastAPI backend)               |
 
 ### API
 
-| Endpoint                                             | Returns                                                                  |
-| ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| `GET /api/health`                                    | status and dataset sizes                                                 |
-| `GET /api/actuals?start=&end=`                       | half-hourly actual wind generation                                       |
-| `GET /api/forecasts?start=&end=&horizon=`            | horizon-selected forecast per hour (with publish time and lead)          |
-| `GET /api/comparison?start=&end=&horizon=`           | actual, forecast and error per hourly slot                               |
-| `GET /api/metrics?start=&end=&horizon=`              | MAE, RMSE, bias, MAPE, nMAE, P10/P50/P90/P95 of error and abs error, coverage |
-| `GET /api/metrics/by-horizon?start=&end=&step=`      | MAE, RMSE, bias and P90 abs error for horizons 0–48 h                    |
-| `GET /api/metrics/by-hour?start=&end=&horizon=`      | MAE, RMSE and bias by UTC hour of day                                    |
+| Endpoint                                        | Returns                                                                       |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| `GET /api/health`                               | status and dataset sizes                                                      |
+| `GET /api/actuals?start=&end=`                  | half-hourly actual wind generation                                            |
+| `GET /api/forecasts?start=&end=&horizon=`       | horizon-selected forecast per hour (with publish time and lead)               |
+| `GET /api/comparison?start=&end=&horizon=`      | actual, forecast and error per hourly slot                                    |
+| `GET /api/metrics?start=&end=&horizon=`         | MAE, RMSE, bias, MAPE, nMAE, P10/P50/P90/P95 of error and abs error, coverage |
+| `GET /api/metrics/by-horizon?start=&end=&step=` | MAE, RMSE, bias and P90 abs error for horizons 0–48 h                         |
+| `GET /api/metrics/by-hour?start=&end=&horizon=` | MAE, RMSE and bias by UTC hour of day                                         |
 
 `start`/`end` are ISO-8601 (naive values are treated as UTC), default to the full month, and
 are clamped to it. `horizon` is 0–48 (default 4). Interactive docs are at `/docs` when running
@@ -144,8 +143,6 @@ locally.
 
 ```
 .
-├── api/
-│   └── index.py              # Vercel serverless entry; imports the FastAPI app
 ├── backend/
 │   ├── app/
 │   │   ├── main.py           # FastAPI app factory, CORS, router registration
@@ -166,7 +163,7 @@ locally.
 │   ├── scripts/
 │   │   └── fetch_data.py     # Downloads and cleans the data from Elexon
 │   ├── tests/                # pytest: horizon selection, metrics, API
-│   ├── Dockerfile
+│   ├── Dockerfile            # Backend image (also used by Render)
 │   ├── pyproject.toml        # ruff, black and pytest config
 │   ├── requirements.txt      # Runtime deps
 │   └── requirements-dev.txt  # + test and lint tools
@@ -181,10 +178,9 @@ locally.
 │   │   └── styles.css        # Dark trading-desk theme, responsive layout
 │   ├── nginx.conf            # Static hosting + /api proxy for Docker
 │   ├── Dockerfile            # Multi-stage: node build -> nginx
+│   ├── vercel.json           # Vercel build settings (Root Directory = frontend)
 │   └── .env.example
 ├── docker-compose.yml        # backend :8000 + frontend :8080
-├── vercel.json               # Static build + Python function + /api rewrite
-├── requirements.txt          # Python deps for the Vercel function
 └── README.md
 ```
 
@@ -207,7 +203,7 @@ npm run dev                          # http://localhost:5173, proxies /api to :8
 ```
 
 The frontend reads `VITE_API_BASE_URL` (see `frontend/.env.example`). Leave it empty to call the
-same origin, which works with the Vite proxy, Docker/nginx and Vercel. Set it to point at a
+same origin, which works with the Vite proxy and Docker/nginx. Set it to point at a
 backend on another host.
 
 ### Docker
@@ -234,27 +230,39 @@ automatically on transient network errors.
 cd backend
 pytest                     # 26 tests: horizon selection, metrics, API
 ruff check . && black --check .
-ruff check --config pyproject.toml ../api   # Vercel entry point
 
 cd ../frontend
 npm run lint && npm run format:check && npm run build
 ```
 
-### Deploy to Vercel
+### Deployment
 
-The repo deploys as **one Vercel project**. `vercel.json` builds the React app to
-`frontend/dist` (static), and `api/index.py` is a Python serverless function serving FastAPI.
-Every `/api/*` request is rewritten to it, and `includeFiles` bundles `backend/app` and the
-cached `backend/data` CSVs into the function.
+The frontend and backend deploy separately from this repo.
 
-```bash
-npm i -g vercel
-vercel login
-vercel --prod              # from the repo root; accept the defaults
-```
+**Backend → Render** (Web Service)
 
-Or import the GitHub repo at <https://vercel.com/new>. No build settings or environment
-variables are needed; `vercel.json` supplies them.
+| Setting           | Value                                                 |
+| ----------------- | ----------------------------------------------------- |
+| Root Directory    | `backend`                                             |
+| Runtime           | Docker (uses `backend/Dockerfile`), or Python 3 with: |
+| Build Command     | `pip install -r requirements.txt`                     |
+| Start Command     | `uvicorn app.main:app --host 0.0.0.0 --port $PORT`    |
+| Health Check Path | `/api/health`                                         |
+| Env (optional)    | `FORECAST_CORS_ORIGINS=https://<your-app>.vercel.app` |
+
+The cached CSVs live in `backend/data`, so the API never depends on Elexon at runtime.
+`FORECAST_CORS_ORIGINS` accepts one origin, a comma-separated list or a JSON list, and
+defaults to `*`.
+
+**Frontend → Vercel**
+
+| Setting                 | Value                                                      |
+| ----------------------- | ---------------------------------------------------------- |
+| Root Directory          | `frontend` (build settings from `frontend/vercel.json`)    |
+| Env `VITE_API_BASE_URL` | `https://<your-service>.onrender.com` (no trailing `/api`) |
+
+`VITE_API_BASE_URL` is baked in at build time, so redeploy after changing it. Render's free tier
+sleeps when idle, so the first request after a pause can take up to a minute.
 
 ## Assumptions and scope decisions
 
