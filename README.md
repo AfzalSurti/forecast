@@ -8,7 +8,8 @@ can size a buffer for forecast error when they buy.
 - **Data:** Elexon BMRS, national wind only. Actuals come from `FUELHH` (`fuelType = WIND`) and
   forecasts from `WINDFOR`.
 - **Scope:** target times 2026-01-01 00:00 to 2026-01-31 23:30 UTC.
-- **Live deployment:** _frontend on Vercel, API on Render — see [Deployment](#deployment)_
+- **Live deployment:** <https://forecast-dun-iota.vercel.app> (frontend on Vercel, API on
+  Render at <https://forecast-m8e5.onrender.com/api/health> — see [Deployment](#deployment))
 
 ## The business problem
 
