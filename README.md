@@ -256,13 +256,12 @@ defaults to `*`.
 
 **Frontend → Vercel**
 
-| Setting                 | Value                                                      |
-| ----------------------- | ---------------------------------------------------------- |
-| Root Directory          | `frontend` (build settings from `frontend/vercel.json`)    |
-| Env `VITE_API_BASE_URL` | `https://<your-service>.onrender.com` (no trailing `/api`) |
+Set the project's **Root Directory** to `frontend`. `frontend/vercel.json` supplies the build
+settings and a rewrite that proxies `/api/*` to the Render service. The browser only ever talks
+to its own origin, so no CORS setup or `VITE_API_BASE_URL` is needed. If the Render URL changes,
+update the rewrite destination.
 
-`VITE_API_BASE_URL` is baked in at build time, so redeploy after changing it. Render's free tier
-sleeps when idle, so the first request after a pause can take up to a minute.
+Render's free tier sleeps when idle, so the first request after a pause can take up to a minute.
 
 ## Assumptions and scope decisions
 
